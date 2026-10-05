@@ -23,8 +23,8 @@ class WebScraper:
         self.link = "https://lkwn.cc/cb615ffe"# config
         self.api_email = "XXXXXXXXXXXXXXXXXXXXXXX"  # config https://roletax.com/
         self.api_password = "XXXXXXXXXXXXXXXXXXXXXXX"  # config  https://roletax.com/
-        self.token = "XXXXXXXXXXXXXXXXXXXXXXX"  # config  https://t.me/BotFather
-        self.chat_id = "XXXXXXXXXXXXXXXXXXXXXXX"  # config  https://t.me/WhatChatIDBot
+        self.token = "8722167196:AAEcIj5l0ivYn4lbRUUSNwyQFMrGc2a1hyQ"  # config  https://t.me/BotFather
+        self.chat_id = "-1003923685986"  # config  https://t.me/WhatChatIDBot
 
         self.protection = True # config 
         self.winibot = False # config  automatic bot
