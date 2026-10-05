@@ -1,7 +1,6 @@
 import csv
 import datetime
 import json
-import os
 import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass
@@ -9,9 +8,6 @@ from typing import List, Optional
 
 import requests
 import telebot
-from dotenv import load_dotenv
-
-load_dotenv()
 
 
 @dataclass
@@ -21,44 +17,43 @@ class Strategy:
 
 
 class WebScraper:
+
     def __init__(self):
         self.game = "BAC-BO AO VIVO"
-        self.link = os.getenv("GAME_LINK", "https://lkwn.cc/cb615ffe")
+        self.link = "https://lkwn.cc/cb615ffe"# config
+        self.api_email = "XXXXXXXXXXXXXXXXXXXXXXX"  # config https://roletax.com/
+        self.api_password = "XXXXXXXXXXXXXXXXXXXXXXX"  # config  https://roletax.com/
+        self.token = "XXXXXXXXXXXXXXXXXXXXXXX"  # config  https://t.me/BotFather
+        self.chat_id = "XXXXXXXXXXXXXXXXXXXXXXX"  # config  https://t.me/WhatChatIDBot
 
-        self.api_email = os.getenv("ROLETAX_EMAIL", "SEU_EMAIL@ROLETAX.COM")
-        self.api_password = os.getenv("ROLETAX_PASSWORD", "SUA_SENHA")
-        self.base_url_api = os.getenv("ROLETAX_BASE_URL", "https://roletax.com")
-        self.provider = os.getenv("ROLETAX_PROVIDER", "Evolution")
-        self.game_api = os.getenv("ROLETAX_GAME", "Bac-Bo-Ao-Vivo")
+        self.protection = True # config 
+        self.winibot = False # config  automatic bot
+        self.gales = 2 # config 
 
-        self.token = os.getenv("TELEGRAM_BOT_TOKEN", "SEU_TOKEN")
-        self.chat_id = os.getenv("TELEGRAM_CHAT_ID", "SEU_CHAT_ID")
 
-        self.protection = os.getenv("PROTECTION", "true").lower() == "true"
-        self.winibot = os.getenv("WINIBOT", "false").lower() == "true"
-        self.gales = int(os.getenv("GALES", "2"))
+        # IA (modelo probabilistico por contexto)
+        self.ai_enabled = True # config 
+        self.ai_max_context = 4 # config 
+        self.ai_min_confidence = 0.60 # config 
+        self.ai_min_samples = 40 # config 
 
-        self.ai_enabled = os.getenv("AI_ENABLED", "true").lower() == "true"
-        self.ai_max_context = int(os.getenv("AI_MAX_CONTEXT", "4"))
-        self.ai_min_confidence = float(os.getenv("AI_MIN_CONFIDENCE", "0.60"))
-        self.ai_min_samples = int(os.getenv("AI_MIN_SAMPLES", "40"))
 
+        self.provider = "Evolution"  # config 
+        self.game_api = "Bac-Bo-Ao-Vivo"  # config 
+
+        self.base_url_api = "https://roletax.com" 
+        self.url_api = f"{self.base_url_api}/v1/games/{self.provider}/{self.game_api}"
         self.url_login_api = f"{self.base_url_api}/auth/login"
         self.url_games_api = f"{self.base_url_api}/v1/games"
-        self.url_api = f"{self.base_url_api}/v1/games/{self.provider}/{self.game_api}"
-
         self.api_access_token: Optional[str] = None
         self.results_newest_first: Optional[bool] = None
-
-        self.telegram_timeout_seconds = int(os.getenv("TELEGRAM_TIMEOUT_SECONDS", "12"))
-        self.poll_interval_seconds = int(os.getenv("POLL_INTERVAL_SECONDS", "1"))
-
+        self.telegram_timeout_seconds = 12
+        self.poll_interval_seconds = 1
         self.win_results = 0
         self.branco_results = 0
         self.loss_results = 0
         self.max_hate = 0
         self.win_hate = 0
-
         self.count = 0
         self.analisar = True
         self.signal_in_progress = False
@@ -68,47 +63,14 @@ class WebScraper:
         self.direction_color = "None"
         self.message_delete = False
         self.message_ids: Optional[int] = None
-
         self.bot = telebot.TeleBot(
             token=self.token,
             parse_mode="MARKDOWN",
             disable_web_page_preview=True,
         )
         self.session = requests.Session()
-
         self.date_now = str(datetime.datetime.now().strftime("%d/%m/%Y"))
         self.check_date = self.date_now
-
-    def validate_config(self):
-        if self.token in ("", "SEU_TOKEN"):
-            raise ValueError("TELEGRAM_BOT_TOKEN não configurado.")
-        if self.chat_id in ("", "SEU_CHAT_ID"):
-            raise ValueError("TELEGRAM_CHAT_ID não configurado.")
-        if self.api_email in ("", "SEU_EMAIL@ROLETAX.COM"):
-            raise ValueError("ROLETAX_EMAIL não configurado.")
-        if self.api_password in ("", "SUA_SENHA"):
-            raise ValueError("ROLETAX_PASSWORD não configurado.")
-
-    def ensure_strategy_file(self, csv_path: str = "strategy.csv") -> None:
-        if os.path.exists(csv_path):
-            return
-
-        default_patterns = [
-            "BPPPP=B",
-            "PBBBB=P",
-            "EBBBB=P",
-            "EPPPP=B",
-            "BPPPPPPPP=B",
-            "PBBBBBBBB=P",
-            "EBBBBBBBB=P",
-            "EPPPPPPPP=B",
-        ]
-
-        with open(csv_path, "w", newline="", encoding="utf-8") as file:
-            writer = csv.writer(file)
-            writer.writerows([[item] for item in default_patterns])
-
-        print(f"Arquivo {csv_path} criado com padrões padrão.")
 
     def _send_message(self, text: str, **kwargs):
         try:
@@ -146,7 +108,6 @@ class WebScraper:
             return False
 
     def load_strategies(self, csv_path: str) -> List[Strategy]:
-        self.ensure_strategy_file(csv_path)
         strategies: List[Strategy] = []
 
         try:
@@ -168,6 +129,8 @@ class WebScraper:
                         continue
 
                     pattern = [item.strip() for item in pattern_raw.split("-") if item.strip()]
+
+                    # Suporta formato compacto como "BPP" alem de "B-P-P".
                     if len(pattern) == 1 and len(pattern[0]) > 1:
                         pattern = list(pattern[0])
 
@@ -180,8 +143,6 @@ class WebScraper:
                     strategies.append(Strategy(pattern_reversed=pattern_reversed, bet=bet))
         except FileNotFoundError:
             print(f"Arquivo de estrategia nao encontrado: {csv_path}")
-        except Exception as error:
-            print(f"Erro ao carregar strategy.csv: {error}")
 
         print(f"Estrategias carregadas: {len(strategies)}")
         return strategies
@@ -193,11 +154,10 @@ class WebScraper:
         }
 
         response = self.session.post(self.url_login_api, json=payload, timeout=10)
-        if response.status_code >= 400:
-            raise ValueError(f"Erro no login da API: {response.status_code} - {response.text[:200]}")
+        response.raise_for_status()
 
         token_data = response.json()
-        access_token = token_data.get("access_token") or token_data.get("token")
+        access_token = token_data.get("access_token")
 
         if not access_token:
             raise ValueError("A API nao retornou access_token no login.")
@@ -213,14 +173,10 @@ class WebScraper:
         return {"Authorization": f"Bearer {self.api_access_token}"}
 
     def resolve_game_endpoint(self, headers: dict) -> bool:
-        try:
-            response = self.session.get(self.url_games_api, headers=headers, timeout=10)
-            response.raise_for_status()
-            games = response.json()
-        except Exception as error:
-            print(f"Erro ao listar jogos: {error}")
-            return False
+        response = self.session.get(self.url_games_api, headers=headers, timeout=10)
+        response.raise_for_status()
 
+        games = response.json()
         if not isinstance(games, list):
             return False
 
@@ -242,8 +198,11 @@ class WebScraper:
                 return True
 
         available_for_provider = [
-            item.get("game", "") for item in games if self._normalize_key(item.get("provider", "")) == target_provider
+            item.get("game", "")
+            for item in games
+            if self._normalize_key(item.get("provider", "")) == target_provider
         ]
+
         print("Jogo nao encontrado exatamente. Disponiveis para o provider:", available_for_provider)
         return False
 
@@ -254,6 +213,7 @@ class WebScraper:
 
         if isinstance(results, str):
             parsed = None
+
             try:
                 parsed = json.loads(results)
             except json.JSONDecodeError:
@@ -269,6 +229,7 @@ class WebScraper:
                     ]
                 else:
                     parsed = []
+
             results = parsed
 
         if not isinstance(results, list):
@@ -278,34 +239,19 @@ class WebScraper:
 
     def fetch_results_from_api(self) -> List[str]:
         headers = self._auth_headers()
-
-        try:
-            response = self.session.get(self.url_api, headers=headers, timeout=10)
-        except requests.RequestException as error:
-            print(f"Erro de rede ao buscar resultados: {error}")
-            return []
+        response = self.session.get(self.url_api, headers=headers, timeout=10)
 
         if response.status_code == 401:
             self.api_access_token = None
             headers = self._auth_headers()
-            try:
-                response = self.session.get(self.url_api, headers=headers, timeout=10)
-            except requests.RequestException as error:
-                print(f"Erro de rede ao refazer request: {error}")
-                return []
+            response = self.session.get(self.url_api, headers=headers, timeout=10)
 
         if response.status_code == 404:
             resolved = self.resolve_game_endpoint(headers)
             if resolved:
-                try:
-                    response = self.session.get(self.url_api, headers=headers, timeout=10)
-                except requests.RequestException as error:
-                    print(f"Erro de rede ao buscar endpoint resolvido: {error}")
-                    return []
+                response = self.session.get(self.url_api, headers=headers, timeout=10)
 
-        if response.status_code >= 400:
-            raise ValueError(f"Erro na API: {response.status_code} - {response.text[:200]}")
-
+        response.raise_for_status()
         game_payload = response.json()
 
         if "data_json" in game_payload and isinstance(game_payload["data_json"], dict):
@@ -314,8 +260,10 @@ class WebScraper:
             data_json = game_payload
 
         results = self.parse_results(data_json)
+
         if not results:
             print(f"Resposta inesperada da API: {str(game_payload)[:200]}")
+
         return results
 
     def normalize_results_order(self, results: List[str], previous_results: Optional[List[str]] = None) -> List[str]:
@@ -327,8 +275,10 @@ class WebScraper:
             and len(previous_results) > 1
             and len(previous_results) == len(normalized)
         ):
+            # Novo item entrando no inicio da lista.
             if previous_results[:-1] == normalized[1:]:
                 self.results_newest_first = True
+            # Novo item entrando no fim da lista.
             elif previous_results[1:] == normalized[:-1]:
                 self.results_newest_first = False
 
@@ -339,26 +289,6 @@ class WebScraper:
             normalized.reverse()
 
         return normalized
-
-    def results(self):
-        total = self.win_results + self.branco_results + self.loss_results
-        if total != 0:
-            accuracy = 100 / total * (self.win_results + self.branco_results)
-        else:
-            accuracy = 0
-
-        message = f"""
-📊 RESUMO DO DIA - {self.date_now}
-
-✅ Vitórias: {self.win_results}
-🟠 Empates: {self.branco_results}
-🚫 Derrotas: {self.loss_results}
-
-► Total: {total} operações
-► Assertividade: {accuracy:,.2f}%
-► Consecutivas: {self.max_hate}
-"""
-        self._send_message(message)
 
     def restart(self):
         if self.date_now != self.check_date:
@@ -489,6 +419,7 @@ class WebScraper:
         self._send_message(text=text, **kwargs)
 
     def _ai_predict_direction(self, final_colors: List[str]):
+        # final_colors chega com resultado mais recente no indice 0.
         ordered = list(reversed(final_colors))
         if len(ordered) < 3:
             return None
@@ -577,14 +508,16 @@ class WebScraper:
             accuracy = 0
 
         self.win_hate = f"{accuracy:,.2f}%"
-        self._send_signal_result_message(
-            text=f"""
+        self._send_signal_result_message(text=(
+                f"""
 {self.result_mgs}
-
+                
 ► PLACAR = ✅{self.win_results} | 🟠{self.branco_results} | 🚫{self.loss_results}
 ► Consecutivas = {self.max_hate}
 ► Assertividade = {self.win_hate}
-"""
+
+    """
+            ),
         )
 
         self.signal_message_id = None
@@ -638,6 +571,7 @@ class WebScraper:
         for item in results:
             key = str(item).strip().lower()
             final_colors.append(mapping.get(key, "E"))
+
         return final_colors
 
     def _pattern_matches(self, final_colors: List[str], final_raw: List[str], pattern: List[str]) -> bool:
@@ -660,7 +594,8 @@ class WebScraper:
         final_raw = list(results)
         final_colors = self.convert_results_to_colors(results)
 
-        print(str(datetime.datetime.now().strftime("%H:%M")), final_colors[0:20])
+        # print(str(datetime.datetime.now().strftime("%H:%M")),final_raw)
+        print(str(datetime.datetime.now().strftime("%H:%M")),final_colors[0:20])
 
         if not final_colors:
             return
@@ -680,6 +615,7 @@ class WebScraper:
         alert_found = False
 
         for strategy in self.load_strategies("strategy.csv"):
+            
             if self._pattern_matches(final_colors, final_raw, strategy.pattern_reversed):
                 self.direction_color = "🔵" if strategy.bet == "P" else "🔴"
                 print("Sinal encontrado", strategy.pattern_reversed, self.direction_color)
@@ -747,31 +683,6 @@ class WebScraper:
             except Exception as error:
                 print("ERROR:", error)
 
-
-def main():
-    print("🤖 Iniciando Bot BAC-BO AO VIVO...")
-    print("=" * 50)
-
-    bot = WebScraper()
-    bot.validate_config()
-    bot.ensure_strategy_file("strategy.csv")
-
-    print(f"✅ Bot configurado com sucesso!")
-    print(f"🎮 Jogo: {bot.game}")
-    print(f"📊 IA Ativada: {bot.ai_enabled}")
-    print(f"🛡️  Proteção EMPATE: {bot.protection}")
-    print(f"🔁 Gales: {bot.gales}")
-    print("=" * 50)
-    print("Bot iniciando... Aguardando sinais\n")
-
-    try:
-        bot.start()
-    except KeyboardInterrupt:
-        print("\n\n⛔ Bot interrompido pelo usuário")
-    except Exception as error:
-        print(f"\n\n❌ Erro crítico: {error}")
-        raise
-
-
 if __name__ == "__main__":
-    main()
+    scraper = WebScraper()
+    scraper.start()
