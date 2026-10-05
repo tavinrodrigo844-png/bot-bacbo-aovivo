@@ -1,6 +1,7 @@
 import csv
 import datetime
 import json
+import os
 import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass
@@ -8,6 +9,9 @@ from typing import List, Optional
 
 import requests
 import telebot
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 @dataclass
@@ -20,35 +24,33 @@ class WebScraper:
 
     def __init__(self):
         self.game = "BAC-BO AO VIVO"
-        self.link = "https://lkwn.cc/cb615ffe"# config
-        self.api_email = "XXXXXXXXXXXXXXXXXXXXXXX"  # config https://roletax.com/
-        self.api_password = "XXXXXXXXXXXXXXXXXXXXXXX"  # config  https://roletax.com/
-        self.token = "8722167196:AAEcIj5l0ivYn4lbRUUSNwyQFMrGc2a1hyQ"  # config  https://t.me/BotFather
-        self.chat_id = "-1003923685986"  # config  https://t.me/WhatChatIDBot
+        self.link = os.getenv("GAME_LINK", "https://lkwn.cc/cb615ffe")
+        self.api_email = os.getenv("ROLETAX_EMAIL", "")
+        self.api_password = os.getenv("ROLETAX_PASSWORD", "")
+        self.token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+        self.chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
 
-        self.protection = True # config 
-        self.winibot = False # config  automatic bot
-        self.gales = 2 # config 
-
+        self.protection = os.getenv("PROTECTION", "true").strip().lower() == "true"
+        self.winibot = os.getenv("WINIBOT", "false").strip().lower() == "true"
+        self.gales = int(os.getenv("GALES", "2"))
 
         # IA (modelo probabilistico por contexto)
-        self.ai_enabled = True # config 
-        self.ai_max_context = 4 # config 
-        self.ai_min_confidence = 0.60 # config 
-        self.ai_min_samples = 40 # config 
+        self.ai_enabled = os.getenv("AI_ENABLED", "true").strip().lower() == "true"
+        self.ai_max_context = int(os.getenv("AI_MAX_CONTEXT", "4"))
+        self.ai_min_confidence = float(os.getenv("AI_MIN_CONFIDENCE", "0.60"))
+        self.ai_min_samples = int(os.getenv("AI_MIN_SAMPLES", "40"))
 
+        self.provider = os.getenv("ROLETAX_PROVIDER", "Evolution")
+        self.game_api = os.getenv("ROLETAX_GAME", "Bac-Bo-Ao-Vivo")
 
-        self.provider = "Evolution"  # config 
-        self.game_api = "Bac-Bo-Ao-Vivo"  # config 
-
-        self.base_url_api = "https://roletax.com" 
+        self.base_url_api = os.getenv("ROLETAX_BASE_URL", "https://roletax.com")
         self.url_api = f"{self.base_url_api}/v1/games/{self.provider}/{self.game_api}"
         self.url_login_api = f"{self.base_url_api}/auth/login"
         self.url_games_api = f"{self.base_url_api}/v1/games"
         self.api_access_token: Optional[str] = None
         self.results_newest_first: Optional[bool] = None
-        self.telegram_timeout_seconds = 12
-        self.poll_interval_seconds = 1
+        self.telegram_timeout_seconds = int(os.getenv("TELEGRAM_TIMEOUT_SECONDS", "12"))
+        self.poll_interval_seconds = int(os.getenv("POLL_INTERVAL_SECONDS", "1"))
         self.win_results = 0
         self.branco_results = 0
         self.loss_results = 0
@@ -63,6 +65,9 @@ class WebScraper:
         self.direction_color = "None"
         self.message_delete = False
         self.message_ids: Optional[int] = None
+
+        self._validate_required_environment()
+
         self.bot = telebot.TeleBot(
             token=self.token,
             parse_mode="MARKDOWN",
@@ -71,6 +76,21 @@ class WebScraper:
         self.session = requests.Session()
         self.date_now = str(datetime.datetime.now().strftime("%d/%m/%Y"))
         self.check_date = self.date_now
+
+    def _validate_required_environment(self):
+        required = {
+            "ROLETAX_EMAIL": self.api_email,
+            "ROLETAX_PASSWORD": self.api_password,
+            "TELEGRAM_BOT_TOKEN": self.token,
+            "TELEGRAM_CHAT_ID": self.chat_id,
+        }
+
+        missing = [key for key, value in required.items() if not str(value).strip()]
+        if missing:
+            raise RuntimeError(
+                "Variaveis de ambiente ausentes: " + ", ".join(missing)
+                + ". Copie .env.example para .env e preencha os valores reais."
+            )
 
     def _send_message(self, text: str, **kwargs):
         try:
@@ -298,7 +318,6 @@ class WebScraper:
             self._send_sticker(
                 "CAACAgEAAxkBAAEBbJJjXNcB92-_4vp2v0B3Plp9FONrDwACvgEAAsFWwUVjxQN4wmmSBCoE"
             )
-            self.results()
 
             self.win_results = 0
             self.loss_results = 0
@@ -310,7 +329,6 @@ class WebScraper:
             self._send_sticker(
                 "CAACAgEAAxkBAAEBPQZi-ziImRgbjqbDkPduogMKzv0zFgACbAQAAl4ByUUIjW-sdJsr6CkE"
             )
-            self.results()
             return True
 
         return False
@@ -615,7 +633,6 @@ class WebScraper:
         alert_found = False
 
         for strategy in self.load_strategies("strategy.csv"):
-            
             if self._pattern_matches(final_colors, final_raw, strategy.pattern_reversed):
                 self.direction_color = "🔵" if strategy.bet == "P" else "🔴"
                 print("Sinal encontrado", strategy.pattern_reversed, self.direction_color)
@@ -682,6 +699,7 @@ class WebScraper:
 
             except Exception as error:
                 print("ERROR:", error)
+
 
 if __name__ == "__main__":
     scraper = WebScraper()
